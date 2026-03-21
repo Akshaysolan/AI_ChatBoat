@@ -141,6 +141,10 @@ header{display:flex;align-items:center;gap:12px;padding:13px 20px 11px;backgroun
 #cc{position:absolute;bottom:13px;right:54px;font-size:0.48rem;color:var(--dim2);font-family:'Space Mono',monospace;opacity:0;transition:opacity .2s;pointer-events:none}
 #cc.show{opacity:1}
 
+/* TYPEWRITER CURSOR */
+.tw-cursor{display:inline-block;width:2px;height:1em;background:var(--accent);margin-left:2px;vertical-align:text-bottom;border-radius:1px;animation:blink-cur .55s step-end infinite}
+@keyframes blink-cur{0%,100%{opacity:1}50%{opacity:0}}
+
 @media(max-width:600px){
   #msgs{padding:18px 13px 12px;gap:18px}
   #bottom{padding:6px 13px 14px}
@@ -570,6 +574,66 @@ function showOffTopic() {
   }
 }
 
+/* ── TYPEWRITER AI RESPONSE ── */
+function typewriteAI(rawText, onDone) {
+  var welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+  var box = document.getElementById('msgs');
+  var div = document.createElement('div');
+  div.className = 'row ai';
+
+  var copySvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>';
+  div.innerHTML = '<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div>' +
+    '<div style="display:flex;flex-direction:column;max-width:76%">' +
+    '<div class="bub" id="tw-bub"></div>' +
+    '<div class="msg-actions" id="tw-actions" style="display:none">' +
+    '<button class="act-btn" onclick="copyMsg(this,this.dataset.text)" data-text="">' + copySvg + '<span class="act-label">Copy</span></button>' +
+    '</div></div>';
+  box.appendChild(div);
+  scrollBot();
+
+  var bub = document.getElementById('tw-bub');
+  bub.removeAttribute('id');
+  var actionsDiv = document.getElementById('tw-actions');
+  actionsDiv.removeAttribute('id');
+
+  // Split full text into words for smooth word-by-word typing
+  var words = rawText.split(' ');
+  var displayed = '';
+  var wi = 0;
+  // speed: ms per word
+  var speed = 28;
+
+  // Add blinking cursor
+  var cursor = document.createElement('span');
+  cursor.className = 'tw-cursor';
+  bub.appendChild(cursor);
+
+  function typeNext() {
+    if (wi >= words.length) {
+      // Done — remove cursor, show final formatted HTML, show copy btn
+      cursor.remove();
+      bub.innerHTML = fmt(rawText);
+      actionsDiv.style.display = 'flex';
+      actionsDiv.querySelector('.act-btn').dataset.text = rawText;
+      if (onDone) onDone();
+      return;
+    }
+    displayed += (wi === 0 ? '' : ' ') + words[wi];
+    wi++;
+    // Render plain text with cursor appended
+    var plain = esc(displayed).replace(/\n/g, '<br/>');
+    bub.innerHTML = plain;
+    bub.appendChild(cursor);
+    scrollBot();
+    // vary speed slightly for natural feel
+    var delay = speed + Math.random() * 12;
+    setTimeout(typeNext, delay);
+  }
+
+  typeNext();
+}
+
 /* ── ERROR ── */
 function appendError(msg, retry) {
   var box = document.getElementById('msgs');
@@ -645,7 +709,8 @@ async function send() {
     if (reply && reply.offTopic) {
       showOffTopic();
     } else {
-      appendRow('ai', reply);
+      typewriteAI(reply, function(){ setBusy(false); inp.focus(); });
+      return; // setBusy handled by callback
     }
   } catch(err) {
     tEl.remove();
