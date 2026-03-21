@@ -285,7 +285,10 @@ const SYSTEM = `You are COSMOS, a brilliant AI guide specialized in space, astro
 • Astrobiology — Fermi paradox, SETI
 • Space technology — rockets, propulsion
 
-Be enthusiastic, scientifically accurate, and awe-inspiring. 2–3 focused paragraphs. Use **bold** for key terms. 1–2 emojis max. Make every answer magnificent.`;
+Be enthusiastic, scientifically accurate, and awe-inspiring. 2–3 focused paragraphs. Use **bold** for key terms. 1–2 emojis max. Make every answer magnificent.
+
+IMPORTANT: If the user asks about anything NOT related to space, astronomy, astrophysics, or cosmology (e.g. cricket, cooking, politics, movies, sports, finance, coding, etc.), you MUST respond with EXACTLY this tag and nothing else:
+[OFF_TOPIC: <one short sentence saying what their topic is, e.g. "Cricket is a sport played on Earth">]`;
 
 /* STATE */
 let hist=[],busy=false,lastMsg='',currentSessionId=null;
@@ -376,6 +379,15 @@ async function askGroq(userText){
   if(!res.ok){const e=await res.json().catch(()=>({}));hist.pop();throw new Error(e.error?.message||`HTTP ${res.status}`);}
   const data=await res.json();
   const reply=data.choices[0].message.content;
+
+  // Detect off-topic response
+  const offMatch=reply.match(/\[OFF_TOPIC:\s*(.+?)\]/s);
+  if(offMatch){
+    hist.pop(); // don't store off-topic in history
+    const topicLine=offMatch[1].trim();
+    return {offTopic:true, topicLine};
+  }
+
   hist.push({role:'assistant',content:reply});
   saveSession();
   return reply;
@@ -396,6 +408,61 @@ function appendRow(role,content,typing=false){
   else if(role==='user'){div.innerHTML=`<div class="uav">✦</div><div class="bub">${esc(content).replace(/\n/g,'<br/>')}</div>`;}
   box.appendChild(div);scrollBot();return div;
 }
+/* LINE-BY-LINE TYPEWRITER for off-topic responses */
+function typewriteOffTopic(topicLine){
+  document.getElementById('welcome')?.remove();
+  const box=document.getElementById('msgs');
+
+  // Build the row with empty bubble
+  const div=document.createElement('div');
+  div.className='row ai';
+  div.innerHTML=`<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub" id="offtopic-bub"></div>`;
+  box.appendChild(div);
+  scrollBot();
+
+  const bub=document.getElementById('offtopic-bub');
+  bub.removeAttribute('id');
+
+  // Lines to type one by one
+  const lines=[
+    {text:'🚀 I\'m designed to help with space and astronomy topics only.', cls:'ot-head'},
+    {text:topicLine+', but I\'d love to help you explore the universe instead!', cls:'ot-sub'},
+    {text:'You can ask me about:', cls:'ot-label'},
+    {text:'• Black holes', cls:'ot-item'},
+    {text:'• Planets and galaxies', cls:'ot-item'},
+    {text:'• Space missions', cls:'ot-item'},
+    {text:'• Stars and cosmology', cls:'ot-item'},
+    {text:'What would you like to explore? 🌌', cls:'ot-end'},
+  ];
+
+  let li=0;
+  function typeLine(){
+    if(li>=lines.length)return;
+    const {text,cls}=lines[li];
+    const p=document.createElement('p');
+    p.className=cls;
+    p.style.opacity='0';
+    p.style.transform='translateY(6px)';
+    p.style.transition='opacity 0.3s ease, transform 0.3s ease';
+    p.style.marginBottom='4px';
+    if(cls==='ot-head'){p.style.fontWeight='700';p.style.color='var(--accent)';p.style.fontSize='0.82rem';}
+    else if(cls==='ot-sub'){p.style.color='var(--text)';p.style.marginBottom='10px';}
+    else if(cls==='ot-label'){p.style.color='var(--dim)';p.style.fontSize='0.72rem';p.style.marginBottom='4px';}
+    else if(cls==='ot-item'){p.style.color='var(--accent2)';p.style.paddingLeft='4px';p.style.fontSize='0.75rem';}
+    else if(cls==='ot-end'){p.style.marginTop='10px';p.style.fontWeight='600';p.style.color='var(--accent)';}
+    bub.appendChild(p);
+    // Trigger fade+slide in
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      p.style.opacity='1';p.style.transform='translateY(0)';
+    }));
+    scrollBot();
+    li++;
+    setTimeout(typeLine, 320);
+  }
+  // Small initial delay so typing indicator has time to disappear
+  setTimeout(typeLine, 100);
+}
+
 function appendError(msg,retry=false){
   const box=document.getElementById('msgs');
   const div=document.createElement('div');div.className='err-row';
@@ -419,7 +486,15 @@ async function send(){
   const inp=document.getElementById('inp');const txt=inp.value.trim();if(!txt)return;
   lastMsg=txt;inp.value='';inp.style.height='auto';document.getElementById('cc').classList.remove('show');
   setBusy(true);appendRow('user',txt);const tEl=appendRow('ai','',true);
-  try{const reply=await askGroq(txt);tEl.remove();appendRow('ai',reply);}
+  try{
+    const reply=await askGroq(txt);
+    tEl.remove();
+    if(reply && reply.offTopic){
+      typewriteOffTopic(reply.topicLine);
+    } else {
+      appendRow('ai',reply);
+    }
+  }
   catch(err){
     tEl.remove();let m=err.message||'Something went wrong.';
     if(/401|invalid_api_key/i.test(m))m='Invalid API key. Check Vercel environment variables.';
