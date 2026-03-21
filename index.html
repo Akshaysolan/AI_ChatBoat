@@ -150,6 +150,22 @@ header{display:flex;align-items:center;gap:12px;padding:13px 20px 11px;backgroun
   .mpill,.hint,.powered{display:none}
   #hist-panel{width:260px}
 }
+
+/* COPY / EDIT ACTIONS */
+.msg-actions{
+  display:flex;gap:5px;margin-top:7px;opacity:0;transition:opacity .18s;
+}
+.row:hover .msg-actions{opacity:1}
+.act-btn{
+  display:flex;align-items:center;gap:4px;
+  background:var(--s2);border:1px solid var(--border);
+  color:var(--dim);padding:3px 9px;border-radius:7px;
+  font-size:0.58rem;font-family:'Space Mono',monospace;
+  cursor:pointer;transition:all .15s;letter-spacing:0.04em;
+}
+.act-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(100,118,255,0.07)}
+.act-btn.copied{border-color:var(--green);color:var(--green);background:rgba(63,217,138,0.07)}
+.act-btn svg{width:11px;height:11px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -273,22 +289,46 @@ header{display:flex;align-items:center;gap:12px;padding:13px 20px 11px;backgroun
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_URL   = '/api/chat';
 
-const SYSTEM = `You are COSMOS, a brilliant AI guide specialized in space, astronomy, astrophysics, and cosmology. You cover:
-• Solar system — planets, moons, asteroids, comets
-• Stars — formation, life cycles, supernovae
-• Galaxies — Milky Way, galaxy types, collisions
-• Exotic objects — black holes, neutron stars, pulsars
-• Space missions — NASA, ESA, SpaceX, ISRO, JAXA
-• Telescopes — Hubble, JWST, Chandra
-• Exoplanets — detection, habitable zones, biosignatures
-• Cosmology — Big Bang, dark matter, dark energy
-• Astrobiology — Fermi paradox, SETI
-• Space technology — rockets, propulsion
+/* OFF-TOPIC KEYWORDS — checked CLIENT-SIDE before any API call */
+const OFF_TOPICS = [
+  'cricket','football','soccer','basketball','tennis','hockey','baseball','rugby','golf','sport','ipl','nfl','nba',
+  'recipe','cook','food','restaurant','pizza','burger','coffee','tea','wine','beer',
+  'movie','film','series','netflix','show','actor','actress','music','song','album','concert',
+  'politics','election','government','president','prime minister','parliament','war','economy',
+  'stock','crypto','bitcoin','finance','investment','trading','bank',
+  'python','javascript','coding','programming','software','react','html','css','nodejs','java',
+  'fashion','clothes','shopping','brand','shoe','dress',
+  'weather','news','today','yesterday','score','result','match','game',
+  'whatsapp','instagram','facebook','twitter','youtube','tiktok','social media',
+  'health','medicine','doctor','hospital','disease','symptoms','covid',
+  'history','geography','math','physics','chemistry','biology','school','college','exam',
+  'relationship','love','dating','marriage','family','baby',
+  'car','bike','travel','hotel','flight','visa','passport',
+  'joke','meme','funny','laugh'
+];
 
-Be enthusiastic, scientifically accurate, and awe-inspiring. 2–3 focused paragraphs. Use **bold** for key terms. 1–2 emojis max. Make every answer magnificent.
+function isOffTopic(text) {
+  const lower = text.toLowerCase();
+  return OFF_TOPICS.some(kw => lower.includes(kw));
+}
 
-IMPORTANT: If the user asks about anything NOT related to space, astronomy, astrophysics, or cosmology (e.g. cricket, cooking, politics, movies, sports, finance, coding, etc.), you MUST respond with EXACTLY this tag and nothing else:
-[OFF_TOPIC: <one short sentence saying what their topic is, e.g. "Cricket is a sport played on Earth">]`;
+const SYSTEM = `You are COSMOS, a brilliant AI guide specialized ONLY in space, astronomy, astrophysics, and cosmology.
+
+Your knowledge covers:
+• Solar system — planets, moons, asteroids, comets, Kuiper Belt
+• Stars — formation, life cycles, supernovae, stellar classification
+• Galaxies — Milky Way, galaxy types, collisions, active galactic nuclei
+• Exotic objects — black holes, neutron stars, pulsars, magnetars
+• Space missions — NASA, ESA, SpaceX, ISRO, JAXA, Roscosmos
+• Telescopes — Hubble, JWST, Chandra, ALMA
+• Exoplanets — detection methods, habitable zones, biosignatures
+• Cosmology — Big Bang, dark matter, dark energy, inflation
+• Astrobiology — Fermi paradox, SETI, search for life
+• Space technology — rockets, propulsion, orbital mechanics
+
+Be enthusiastic, scientifically accurate, and awe-inspiring. 2-3 focused paragraphs. Use **bold** for key terms. 1-2 emojis max. Make every answer magnificent.
+
+STRICT RULE: You only answer space and astronomy questions. If asked about anything else, reply with exactly: OFFTOPIC`;
 
 /* STATE */
 let hist=[],busy=false,lastMsg='',currentSessionId=null;
@@ -378,89 +418,119 @@ async function askGroq(userText){
   });
   if(!res.ok){const e=await res.json().catch(()=>({}));hist.pop();throw new Error(e.error?.message||`HTTP ${res.status}`);}
   const data=await res.json();
-  const reply=data.choices[0].message.content;
-
-  // Detect off-topic response
-  const offMatch=reply.match(/\[OFF_TOPIC:\s*(.+?)\]/s);
-  if(offMatch){
-    hist.pop(); // don't store off-topic in history
-    const topicLine=offMatch[1].trim();
-    return {offTopic:true, topicLine};
+  const reply=data.choices[0].message.content.trim();
+  if(reply==='OFFTOPIC'||reply.startsWith('OFFTOPIC')){
+    hist.pop();
+    return {offTopic:true};
   }
-
   hist.push({role:'assistant',content:reply});
   saveSession();
   return reply;
 }
 
-/* RENDER */
+/* RENDER HELPERS */
 const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function fmt(raw){
   return raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/`(.+?)`/g,'<code>$1</code>')
     .split(/\n{2,}/).map(p=>`<p>${p.replace(/\n/g,'<br/>')}</p>`).join('');
 }
+
+/* COPY BUTTON */
+function copyMsg(btn, text){
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.classList.add('copied');
+    btn.querySelector('.act-label').textContent='Copied!';
+    setTimeout(()=>{btn.classList.remove('copied');btn.querySelector('.act-label').textContent='Copy';},2000);
+  }).catch(()=>{
+    // fallback
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    btn.classList.add('copied');btn.querySelector('.act-label').textContent='Copied!';
+    setTimeout(()=>{btn.classList.remove('copied');btn.querySelector('.act-label').textContent='Copy';},2000);
+  });
+}
+
+/* EDIT BUTTON — puts message back in input */
+function editMsg(text){
+  const inp=document.getElementById('inp');
+  inp.value=text;onInput(inp);inp.focus();
+}
+
+/* APPEND MESSAGE ROW */
 function appendRow(role,content,typing=false){
   document.getElementById('welcome')?.remove();
   const box=document.getElementById('msgs');
-  const div=document.createElement('div');div.className='row '+role;if(typing)div.id='trow';
-  if(role==='ai'){div.innerHTML=`<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub">${typing?'<div class="typing"><span></span><span></span><span></span></div>':fmt(content)}</div>`;}
-  else if(role==='user'){div.innerHTML=`<div class="uav">✦</div><div class="bub">${esc(content).replace(/\n/g,'<br/>')}</div>`;}
+  const div=document.createElement('div');
+  div.className='row '+role;
+  if(typing)div.id='trow';
+
+  if(role==='ai'){
+    div.innerHTML=`
+      <div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div>
+      <div style="display:flex;flex-direction:column;max-width:76%">
+        <div class="bub">${typing?'<div class="typing"><span></span><span></span><span></span></div>':fmt(content)}</div>
+        ${!typing?`<div class="msg-actions">
+          <button class="act-btn" onclick="copyMsg(this,${JSON.stringify(content)})">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>
+            <span class="act-label">Copy</span>
+          </button>
+        </div>`:''}
+      </div>`;
+  } else if(role==='user'){
+    div.innerHTML=`
+      <div style="display:flex;flex-direction:column;align-items:flex-end;max-width:76%">
+        <div class="bub">${esc(content).replace(/\n/g,'<br/>')}</div>
+        <div class="msg-actions" style="justify-content:flex-end">
+          <button class="act-btn" onclick="editMsg(${JSON.stringify(content)})">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z"/></svg>
+            <span class="act-label">Edit</span>
+          </button>
+          <button class="act-btn" onclick="copyMsg(this,${JSON.stringify(content)})">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>
+            <span class="act-label">Copy</span>
+          </button>
+        </div>
+      </div>
+      <div class="uav">✦</div>`;
+  }
   box.appendChild(div);scrollBot();return div;
 }
-/* LINE-BY-LINE TYPEWRITER for off-topic responses */
-function typewriteOffTopic(topicLine){
+
+/* OFF-TOPIC TYPEWRITER ANIMATION */
+function showOffTopic(){
   document.getElementById('welcome')?.remove();
   const box=document.getElementById('msgs');
-
-  // Build the row with empty bubble
   const div=document.createElement('div');
   div.className='row ai';
-  div.innerHTML=`<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub" id="offtopic-bub"></div>`;
-  box.appendChild(div);
-  scrollBot();
+  div.innerHTML=`<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub" id="ot-bub" style="max-width:76%"></div>`;
+  box.appendChild(div);scrollBot();
 
-  const bub=document.getElementById('offtopic-bub');
+  const bub=document.getElementById('ot-bub');
   bub.removeAttribute('id');
 
-  // Lines to type one by one
   const lines=[
-    {text:'🚀 I\'m designed to help with space and astronomy topics only.', cls:'ot-head'},
-    {text:topicLine+', but I\'d love to help you explore the universe instead!', cls:'ot-sub'},
-    {text:'You can ask me about:', cls:'ot-label'},
-    {text:'• Black holes', cls:'ot-item'},
-    {text:'• Planets and galaxies', cls:'ot-item'},
-    {text:'• Space missions', cls:'ot-item'},
-    {text:'• Stars and cosmology', cls:'ot-item'},
-    {text:'What would you like to explore? 🌌', cls:'ot-end'},
+    {html:'🚀 <strong>I'm designed to help with space and astronomy topics only.</strong>',delay:0},
+    {html:'That topic is outside my cosmic domain, but I'd love to help you explore the universe instead!',delay:320},
+    {html:'<span style="color:var(--dim);font-size:0.72rem">You can ask me about:</span>',delay:620},
+    {html:'<span style="color:var(--accent2)">• Black holes</span>',delay:900},
+    {html:'<span style="color:var(--accent2)">• Planets and galaxies</span>',delay:1080},
+    {html:'<span style="color:var(--accent2)">• Space missions</span>',delay:1260},
+    {html:'<span style="color:var(--accent2)">• Stars and cosmology</span>',delay:1440},
+    {html:'<strong style="color:var(--accent)">What would you like to explore? 🌌</strong>',delay:1700},
   ];
 
-  let li=0;
-  function typeLine(){
-    if(li>=lines.length)return;
-    const {text,cls}=lines[li];
-    const p=document.createElement('p');
-    p.className=cls;
-    p.style.opacity='0';
-    p.style.transform='translateY(6px)';
-    p.style.transition='opacity 0.3s ease, transform 0.3s ease';
-    p.style.marginBottom='4px';
-    if(cls==='ot-head'){p.style.fontWeight='700';p.style.color='var(--accent)';p.style.fontSize='0.82rem';}
-    else if(cls==='ot-sub'){p.style.color='var(--text)';p.style.marginBottom='10px';}
-    else if(cls==='ot-label'){p.style.color='var(--dim)';p.style.fontSize='0.72rem';p.style.marginBottom='4px';}
-    else if(cls==='ot-item'){p.style.color='var(--accent2)';p.style.paddingLeft='4px';p.style.fontSize='0.75rem';}
-    else if(cls==='ot-end'){p.style.marginTop='10px';p.style.fontWeight='600';p.style.color='var(--accent)';}
-    bub.appendChild(p);
-    // Trigger fade+slide in
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      p.style.opacity='1';p.style.transform='translateY(0)';
-    }));
-    scrollBot();
-    li++;
-    setTimeout(typeLine, 320);
-  }
-  // Small initial delay so typing indicator has time to disappear
-  setTimeout(typeLine, 100);
+  lines.forEach(({html,delay})=>{
+    setTimeout(()=>{
+      const p=document.createElement('p');
+      p.innerHTML=html;
+      p.style.cssText='margin-bottom:5px;opacity:0;transform:translateY(7px);transition:opacity 0.28s ease,transform 0.28s ease;';
+      bub.appendChild(p);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        p.style.opacity='1';p.style.transform='translateY(0)';
+      }));
+      scrollBot();
+    },delay);
+  });
 }
 
 function appendError(msg,retry=false){
@@ -481,21 +551,32 @@ function usePill(el){const txt=el.textContent.trim().replace(/^[^\u0000-\u007F\s
 
 /* SEND */
 function setBusy(v){busy=v;const b=document.getElementById('snd');b.disabled=v;b.classList.toggle('busy',v);}
+
 async function send(){
   if(busy)return;
   const inp=document.getElementById('inp');const txt=inp.value.trim();if(!txt)return;
   lastMsg=txt;inp.value='';inp.style.height='auto';document.getElementById('cc').classList.remove('show');
-  setBusy(true);appendRow('user',txt);const tEl=appendRow('ai','',true);
+  setBusy(true);
+  appendRow('user',txt);
+
+  // CLIENT-SIDE off-topic check — no API call wasted
+  if(isOffTopic(txt)){
+    setBusy(false);
+    showOffTopic();
+    inp.focus();
+    return;
+  }
+
+  const tEl=appendRow('ai','',true);
   try{
     const reply=await askGroq(txt);
     tEl.remove();
-    if(reply && reply.offTopic){
-      typewriteOffTopic(reply.topicLine);
+    if(reply&&reply.offTopic){
+      showOffTopic();
     } else {
       appendRow('ai',reply);
     }
-  }
-  catch(err){
+  }catch(err){
     tEl.remove();let m=err.message||'Something went wrong.';
     if(/401|invalid_api_key/i.test(m))m='Invalid API key. Check Vercel environment variables.';
     else if(/429|rate.limit/i.test(m))m='Rate limit reached. Wait a moment and try again.';
@@ -503,11 +584,13 @@ async function send(){
     appendError(m,true);
   }finally{setBusy(false);inp.focus();}
 }
+
 async function retry(){
   if(!lastMsg||busy)return;
   document.querySelectorAll('.err-row').forEach(e=>e.remove());
   const inp=document.getElementById('inp');inp.value=lastMsg;onInput(inp);send();
 }
+
 function clearChat(){
   if(busy)return;saveSession();hist=[];lastMsg='';currentSessionId=null;
   document.getElementById('msgs').innerHTML=`<div id="welcome"><div class="hero-orb"><div class="hero-ring"></div><div class="hero-core"><div class="hero-planet">🌌</div></div></div><div class="wt">Explore the Cosmos</div><p class="ws">Your AI guide to the universe. Ask anything about black holes, exoplanets, missions, or the mysteries of space.</p><div class="pills"><span class="pill" onclick="usePill(this)">🕳️ How do black holes form?</span><span class="pill" onclick="usePill(this)">🔭 James Webb discoveries</span><span class="pill" onclick="usePill(this)">🚀 Could humans live on Mars?</span><span class="pill" onclick="usePill(this)">✨ What is dark matter?</span><span class="pill" onclick="usePill(this)">🌍 How did Earth form?</span><span class="pill" onclick="usePill(this)">💥 The Big Bang explained</span></div></div>`;
