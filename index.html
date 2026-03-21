@@ -267,337 +267,418 @@ header{display:flex;align-items:center;gap:12px;padding:13px 20px 11px;backgroun
   </div>
 </div>
 
+
 <script>
-/* CANVAS STARFIELD */
+/* ── STARFIELD ── */
 (function(){
   const cv=document.getElementById('bg'),cx=cv.getContext('2d');
   let W,H,stars=[],t=0;
   const resize=()=>{W=cv.width=innerWidth;H=cv.height=innerHeight};
-  const mk=()=>{stars=Array.from({length:220},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.3+0.15,phase:Math.random()*Math.PI*2,freq:.35+Math.random()*.9,lo:.06+Math.random()*.12,hi:.3+Math.random()*.5}))};
+  const mk=()=>{stars=Array.from({length:220},()=>({
+    x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.3+0.15,
+    phase:Math.random()*Math.PI*2,freq:.35+Math.random()*.9,
+    lo:.06+Math.random()*.12,hi:.3+Math.random()*.5
+  }))};
   const draw=()=>{
     cx.clearRect(0,0,W,H);t+=.014;
-    for(const s of stars){const a=s.lo+(s.hi-s.lo)*.5*(1+Math.sin(s.freq*t+s.phase));cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fillStyle=`rgba(255,255,255,${a.toFixed(3)})`;cx.fill()}
-    const g1=cx.createRadialGradient(W*.87,H*.09,0,W*.87,H*.09,W*.3);g1.addColorStop(0,'rgba(100,118,255,0.05)');g1.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=g1;cx.fillRect(0,0,W,H);
-    const g2=cx.createRadialGradient(W*.07,H*.88,0,W*.07,H*.88,W*.26);g2.addColorStop(0,'rgba(170,130,255,0.04)');g2.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=g2;cx.fillRect(0,0,W,H);
+    for(const s of stars){
+      const a=s.lo+(s.hi-s.lo)*.5*(1+Math.sin(s.freq*t+s.phase));
+      cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      cx.fillStyle='rgba(255,255,255,'+a.toFixed(3)+')';cx.fill();
+    }
+    const g1=cx.createRadialGradient(W*.87,H*.09,0,W*.87,H*.09,W*.3);
+    g1.addColorStop(0,'rgba(100,118,255,0.05)');g1.addColorStop(1,'rgba(0,0,0,0)');
+    cx.fillStyle=g1;cx.fillRect(0,0,W,H);
+    const g2=cx.createRadialGradient(W*.07,H*.88,0,W*.07,H*.88,W*.26);
+    g2.addColorStop(0,'rgba(170,130,255,0.04)');g2.addColorStop(1,'rgba(0,0,0,0)');
+    cx.fillStyle=g2;cx.fillRect(0,0,W,H);
     requestAnimationFrame(draw);
   };
   window.addEventListener('resize',()=>{resize();mk()});
   resize();mk();draw();
 })();
 
-/* CONFIG */
+/* ── CONFIG ── */
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_URL   = '/api/chat';
 
-/* OFF-TOPIC KEYWORDS — checked CLIENT-SIDE before any API call */
+/* ── OFF-TOPIC KEYWORD LIST ── */
 const OFF_TOPICS = [
-  'cricket','football','soccer','basketball','tennis','hockey','baseball','rugby','golf','sport','ipl','nfl','nba',
-  'recipe','cook','food','restaurant','pizza','burger','coffee','tea','wine','beer',
-  'movie','film','series','netflix','show','actor','actress','music','song','album','concert',
-  'politics','election','government','president','prime minister','parliament','war','economy',
-  'stock','crypto','bitcoin','finance','investment','trading','bank',
-  'python','javascript','coding','programming','software','react','html','css','nodejs','java',
-  'fashion','clothes','shopping','brand','shoe','dress',
-  'weather','news','today','yesterday','score','result','match','game',
-  'whatsapp','instagram','facebook','twitter','youtube','tiktok','social media',
-  'health','medicine','doctor','hospital','disease','symptoms','covid',
-  'history','geography','math','physics','chemistry','biology','school','college','exam',
-  'relationship','love','dating','marriage','family','baby',
-  'car','bike','travel','hotel','flight','visa','passport',
-  'joke','meme','funny','laugh'
+  'cricket','football','soccer','basketball','tennis','hockey','baseball','rugby','golf',
+  'ipl','nfl','nba','fifa','sport','match','score','tournament','league',
+  'recipe','cook','food','restaurant','pizza','burger','coffee','tea','wine','beer','drink',
+  'movie','film','series','netflix','show','actor','actress','music','song','album','concert','spotify',
+  'politics','election','government','president','minister','parliament','war','army','military',
+  'stock','crypto','bitcoin','ethereum','finance','investment','trading','bank','money','salary',
+  'python','javascript','coding','programming','software','react','html','css','nodejs','java','php',
+  'fashion','clothes','shopping','brand','shoe','dress','makeup','beauty',
+  'weather','news','today','yesterday','result','icc','bcci',
+  'whatsapp','instagram','facebook','twitter','youtube','tiktok','snapchat','reddit',
+  'health','medicine','doctor','hospital','disease','symptom','covid','vaccine','tablet',
+  'history','geography','math','calculus','chemistry','biology','exam','homework','assignment',
+  'relationship','love','dating','marriage','family','baby','girlfriend','boyfriend',
+  'car','bike','travel','hotel','flight','visa','passport','train','bus',
+  'joke','meme','funny','laugh','comedy'
 ];
 
 function isOffTopic(text) {
   const lower = text.toLowerCase();
-  return OFF_TOPICS.some(kw => lower.includes(kw));
+  return OFF_TOPICS.some(function(kw){ return lower.includes(kw); });
 }
 
-const SYSTEM = `You are COSMOS, a brilliant AI guide specialized ONLY in space, astronomy, astrophysics, and cosmology.
+/* ── SYSTEM PROMPT ── */
+const SYSTEM = 'You are COSMOS, a brilliant AI guide specialized ONLY in space, astronomy, astrophysics, and cosmology.\n\nYour knowledge covers:\n- Solar system: planets, moons, asteroids, comets, Kuiper Belt\n- Stars: formation, life cycles, supernovae, stellar classification\n- Galaxies: Milky Way, galaxy types, collisions, active galactic nuclei\n- Exotic objects: black holes, neutron stars, pulsars, magnetars\n- Space missions: NASA, ESA, SpaceX, ISRO, JAXA\n- Telescopes: Hubble, JWST, Chandra, ALMA\n- Exoplanets: detection methods, habitable zones, biosignatures\n- Cosmology: Big Bang, dark matter, dark energy, inflation\n- Astrobiology: Fermi paradox, SETI, search for life\n- Space technology: rockets, propulsion, orbital mechanics\n\nBe enthusiastic, scientifically accurate, and awe-inspiring. 2-3 focused paragraphs. Use **bold** for key terms. 1-2 emojis max.\n\nSTRICT RULE: Only answer space and astronomy questions. For anything else reply with exactly one word: OFFTOPIC';
 
-Your knowledge covers:
-• Solar system — planets, moons, asteroids, comets, Kuiper Belt
-• Stars — formation, life cycles, supernovae, stellar classification
-• Galaxies — Milky Way, galaxy types, collisions, active galactic nuclei
-• Exotic objects — black holes, neutron stars, pulsars, magnetars
-• Space missions — NASA, ESA, SpaceX, ISRO, JAXA, Roscosmos
-• Telescopes — Hubble, JWST, Chandra, ALMA
-• Exoplanets — detection methods, habitable zones, biosignatures
-• Cosmology — Big Bang, dark matter, dark energy, inflation
-• Astrobiology — Fermi paradox, SETI, search for life
-• Space technology — rockets, propulsion, orbital mechanics
+/* ── STATE ── */
+var hist = [];
+var busy = false;
+var lastMsg = '';
+var currentSessionId = null;
 
-Be enthusiastic, scientifically accurate, and awe-inspiring. 2-3 focused paragraphs. Use **bold** for key terms. 1-2 emojis max. Make every answer magnificent.
-
-STRICT RULE: You only answer space and astronomy questions. If asked about anything else, reply with exactly: OFFTOPIC`;
-
-/* STATE */
-let hist=[],busy=false,lastMsg='',currentSessionId=null;
-
-/* HISTORY */
-function saveSession(){
-  if(!hist.length)return;
-  const sessions=getSessions();
-  const id=currentSessionId||Date.now().toString();
-  currentSessionId=id;
-  const firstUser=hist.find(m=>m.role==='user');
-  const title=firstUser?firstUser.content.slice(0,48)+(firstUser.content.length>48?'…':''):'Conversation';
-  sessions[id]={id,title,date:new Date().toISOString(),messages:hist};
-  localStorage.setItem('cosmos_sessions',JSON.stringify(sessions));
+/* ── HISTORY ── */
+function saveSession() {
+  if (!hist.length) return;
+  var sessions = getSessions();
+  var id = currentSessionId || Date.now().toString();
+  currentSessionId = id;
+  var firstUser = hist.find(function(m){ return m.role === 'user'; });
+  var title = firstUser ? firstUser.content.slice(0,48) + (firstUser.content.length > 48 ? '…' : '') : 'Conversation';
+  sessions[id] = { id:id, title:title, date:new Date().toISOString(), messages:hist };
+  localStorage.setItem('cosmos_sessions', JSON.stringify(sessions));
   renderHistory();
 }
-function getSessions(){try{return JSON.parse(localStorage.getItem('cosmos_sessions')||'{}')}catch(e){return{}}}
-function deleteSession(id,e){
-  e.stopPropagation();
-  const sessions=getSessions();delete sessions[id];
-  localStorage.setItem('cosmos_sessions',JSON.stringify(sessions));
-  if(currentSessionId===id)newChat();else renderHistory();
+function getSessions() {
+  try { return JSON.parse(localStorage.getItem('cosmos_sessions') || '{}'); }
+  catch(e) { return {}; }
 }
-function loadSession(id){
-  const s=getSessions()[id];if(!s)return;
-  currentSessionId=id;hist=[...s.messages];
-  const msgs=document.getElementById('msgs');msgs.innerHTML='';
-  for(const m of hist){if(m.role==='user')appendRow('user',m.content);else if(m.role==='assistant')appendRow('ai',m.content);}
+function deleteSession(id, e) {
+  e.stopPropagation();
+  var sessions = getSessions();
+  delete sessions[id];
+  localStorage.setItem('cosmos_sessions', JSON.stringify(sessions));
+  if (currentSessionId === id) newChat(); else renderHistory();
+}
+function loadSession(id) {
+  var s = getSessions()[id];
+  if (!s) return;
+  currentSessionId = id;
+  hist = s.messages.slice();
+  var msgs = document.getElementById('msgs');
+  msgs.innerHTML = '';
+  for (var i = 0; i < hist.length; i++) {
+    if (hist[i].role === 'user') appendRow('user', hist[i].content);
+    else if (hist[i].role === 'assistant') appendRow('ai', hist[i].content);
+  }
   closeAll();
 }
-function renderHistory(){
-  const list=document.getElementById('hp-list');
-  const sessions=getSessions();
-  const keys=Object.keys(sessions).sort((a,b)=>b-a);
-  if(!keys.length){list.innerHTML='<div class="hp-empty">No saved conversations yet.<br/>Start chatting to build your history.</div>';return;}
-  list.innerHTML=keys.map(id=>{
-    const s=sessions[id];
-    const dateStr=new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const active=id===currentSessionId?' active':'';
-    return `<div class="hitem${active}" onclick="loadSession('${id}')">
-      <div class="hitem-title">${esc(s.title)}</div>
-      <div class="hitem-meta"><span>${s.messages.filter(m=>m.role==='user').length} msgs</span><span>${dateStr}</span></div>
-      <button class="hitem-del" onclick="deleteSession('${id}',event)">✕</button>
-    </div>`;
-  }).join('');
+function renderHistory() {
+  var list = document.getElementById('hp-list');
+  var sessions = getSessions();
+  var keys = Object.keys(sessions).sort(function(a,b){ return b-a; });
+  if (!keys.length) {
+    list.innerHTML = '<div class="hp-empty">No saved conversations yet.<br/>Start chatting to build your history.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < keys.length; i++) {
+    var id = keys[i];
+    var s = sessions[id];
+    var dateStr = new Date(s.date).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    var active = id === currentSessionId ? ' active' : '';
+    var msgCount = s.messages.filter(function(m){ return m.role === 'user'; }).length;
+    html += '<div class="hitem' + active + '" onclick="loadSession(\'' + id + '\')">';
+    html += '<div class="hitem-title">' + esc(s.title) + '</div>';
+    html += '<div class="hitem-meta"><span>' + msgCount + ' msgs</span><span>' + dateStr + '</span></div>';
+    html += '<button class="hitem-del" onclick="deleteSession(\'' + id + '\',event)">✕</button>';
+    html += '</div>';
+  }
+  list.innerHTML = html;
 }
 
-/* THEME */
-function setTheme(t,el){
-  document.documentElement.setAttribute('data-theme',t);
-  localStorage.setItem('cosmos_theme',t);
-  document.querySelectorAll('.tcard').forEach(c=>c.classList.remove('active'));
-  if(el)el.classList.add('active');
+/* ── THEME ── */
+function setTheme(t, el) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('cosmos_theme', t);
+  document.querySelectorAll('.tcard').forEach(function(c){ c.classList.remove('active'); });
+  if (el) el.classList.add('active');
 }
-function toggleTheme(e){
+function toggleTheme(e) {
   e.stopPropagation();
-  const tp=document.getElementById('theme-panel');
-  const isOpen=tp.classList.contains('open');
+  var tp = document.getElementById('theme-panel');
+  var isOpen = tp.classList.contains('open');
   closeAll();
-  if(!isOpen){tp.classList.add('open');document.getElementById('overlay').classList.add('open');}
+  if (!isOpen) { tp.classList.add('open'); document.getElementById('overlay').classList.add('open'); }
 }
-function toggleHistory(){
-  const hp=document.getElementById('hist-panel');
-  const isOpen=hp.classList.contains('open');
+function toggleHistory() {
+  var hp = document.getElementById('hist-panel');
+  var isOpen = hp.classList.contains('open');
   closeAll();
-  if(!isOpen){renderHistory();hp.classList.add('open');document.getElementById('overlay').classList.add('open');}
+  if (!isOpen) { renderHistory(); hp.classList.add('open'); document.getElementById('overlay').classList.add('open'); }
 }
-function closeAll(){
+function closeAll() {
   document.getElementById('hist-panel').classList.remove('open');
   document.getElementById('theme-panel').classList.remove('open');
   document.getElementById('overlay').classList.remove('open');
 }
 (function(){
-  const saved=localStorage.getItem('cosmos_theme')||'dark';
-  document.documentElement.setAttribute('data-theme',saved);
-  const card=document.querySelector(`.tcard[data-t="${saved}"]`);
-  if(card){document.querySelectorAll('.tcard').forEach(c=>c.classList.remove('active'));card.classList.add('active');}
+  var saved = localStorage.getItem('cosmos_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  var card = document.querySelector('.tcard[data-t="' + saved + '"]');
+  if (card) {
+    document.querySelectorAll('.tcard').forEach(function(c){ c.classList.remove('active'); });
+    card.classList.add('active');
+  }
 })();
 
-/* API */
-async function askGroq(userText){
-  hist.push({role:'user',content:userText});
-  const res=await fetch(GROQ_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:GROQ_MODEL,messages:[{role:'system',content:SYSTEM},...hist],max_tokens:900,temperature:0.78,stream:false})
+/* ── API ── */
+async function askGroq(userText) {
+  hist.push({ role:'user', content:userText });
+  var res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [{ role:'system', content:SYSTEM }].concat(hist),
+      max_tokens: 900,
+      temperature: 0.78,
+      stream: false
+    })
   });
-  if(!res.ok){const e=await res.json().catch(()=>({}));hist.pop();throw new Error(e.error?.message||`HTTP ${res.status}`);}
-  const data=await res.json();
-  const reply=data.choices[0].message.content.trim();
-  if(reply==='OFFTOPIC'||reply.startsWith('OFFTOPIC')){
+  if (!res.ok) {
+    var e = await res.json().catch(function(){ return {}; });
     hist.pop();
-    return {offTopic:true};
+    throw new Error((e.error && e.error.message) || ('HTTP ' + res.status));
   }
-  hist.push({role:'assistant',content:reply});
+  var data = await res.json();
+  var reply = data.choices[0].message.content.trim();
+  if (reply === 'OFFTOPIC' || reply.startsWith('OFFTOPIC')) {
+    hist.pop();
+    return { offTopic: true };
+  }
+  hist.push({ role:'assistant', content:reply });
   saveSession();
   return reply;
 }
 
-/* RENDER HELPERS */
-const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-function fmt(raw){
-  return raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/`(.+?)`/g,'<code>$1</code>')
-    .split(/\n{2,}/).map(p=>`<p>${p.replace(/\n/g,'<br/>')}</p>`).join('');
+/* ── RENDER HELPERS ── */
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmt(raw) {
+  return raw
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .split(/\n{2,}/).map(function(p){ return '<p>' + p.replace(/\n/g,'<br/>') + '</p>'; }).join('');
 }
 
-/* COPY BUTTON */
-function copyMsg(btn, text){
-  navigator.clipboard.writeText(text).then(()=>{
+/* ── COPY BUTTON ── */
+function copyMsg(btn, text) {
+  navigator.clipboard.writeText(text).then(function(){
     btn.classList.add('copied');
-    btn.querySelector('.act-label').textContent='Copied!';
-    setTimeout(()=>{btn.classList.remove('copied');btn.querySelector('.act-label').textContent='Copy';},2000);
-  }).catch(()=>{
-    // fallback
-    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-    btn.classList.add('copied');btn.querySelector('.act-label').textContent='Copied!';
-    setTimeout(()=>{btn.classList.remove('copied');btn.querySelector('.act-label').textContent='Copy';},2000);
+    btn.querySelector('.act-label').textContent = 'Copied!';
+    setTimeout(function(){ btn.classList.remove('copied'); btn.querySelector('.act-label').textContent = 'Copy'; }, 2000);
+  }).catch(function(){
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    btn.classList.add('copied');
+    btn.querySelector('.act-label').textContent = 'Copied!';
+    setTimeout(function(){ btn.classList.remove('copied'); btn.querySelector('.act-label').textContent = 'Copy'; }, 2000);
   });
 }
 
-/* EDIT BUTTON — puts message back in input */
-function editMsg(text){
-  const inp=document.getElementById('inp');
-  inp.value=text;onInput(inp);inp.focus();
+/* ── EDIT BUTTON ── */
+function editMsg(text) {
+  var inp = document.getElementById('inp');
+  inp.value = text; onInput(inp); inp.focus();
 }
 
-/* APPEND MESSAGE ROW */
-function appendRow(role,content,typing=false){
-  document.getElementById('welcome')?.remove();
-  const box=document.getElementById('msgs');
-  const div=document.createElement('div');
-  div.className='row '+role;
-  if(typing)div.id='trow';
+/* ── APPEND ROW ── */
+function appendRow(role, content, typing) {
+  var welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+  var box = document.getElementById('msgs');
+  var div = document.createElement('div');
+  div.className = 'row ' + role;
+  if (typing) div.id = 'trow';
 
-  if(role==='ai'){
-    div.innerHTML=`
-      <div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div>
-      <div style="display:flex;flex-direction:column;max-width:76%">
-        <div class="bub">${typing?'<div class="typing"><span></span><span></span><span></span></div>':fmt(content)}</div>
-        ${!typing?`<div class="msg-actions">
-          <button class="act-btn" onclick="copyMsg(this,${JSON.stringify(content)})">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>
-            <span class="act-label">Copy</span>
-          </button>
-        </div>`:''}
-      </div>`;
-  } else if(role==='user'){
-    div.innerHTML=`
-      <div style="display:flex;flex-direction:column;align-items:flex-end;max-width:76%">
-        <div class="bub">${esc(content).replace(/\n/g,'<br/>')}</div>
-        <div class="msg-actions" style="justify-content:flex-end">
-          <button class="act-btn" onclick="editMsg(${JSON.stringify(content)})">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z"/></svg>
-            <span class="act-label">Edit</span>
-          </button>
-          <button class="act-btn" onclick="copyMsg(this,${JSON.stringify(content)})">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>
-            <span class="act-label">Copy</span>
-          </button>
-        </div>
-      </div>
-      <div class="uav">✦</div>`;
+  var copySvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11V3a1 1 0 011-1h7"/></svg>';
+  var editSvg = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z"/></svg>';
+
+  if (role === 'ai') {
+    var bubContent = typing ? '<div class="typing"><span></span><span></span><span></span></div>' : fmt(content);
+    var actions = typing ? '' : '<div class="msg-actions"><button class="act-btn" onclick="copyMsg(this, this.dataset.text)" data-text="">' + copySvg + '<span class="act-label">Copy</span></button></div>';
+    div.innerHTML = '<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div style="display:flex;flex-direction:column;max-width:76%"><div class="bub">' + bubContent + '</div>' + actions + '</div>';
+    if (!typing) {
+      div.querySelector('.act-btn').dataset.text = content;
+    }
+  } else if (role === 'user') {
+    var actions2 = '<div class="msg-actions" style="justify-content:flex-end"><button class="act-btn" onclick="editMsg(this.dataset.text)" data-text="">' + editSvg + '<span class="act-label">Edit</span></button><button class="act-btn" onclick="copyMsg(this, this.dataset.text)" data-text="">' + copySvg + '<span class="act-label">Copy</span></button></div>';
+    div.innerHTML = '<div style="display:flex;flex-direction:column;align-items:flex-end;max-width:76%"><div class="bub">' + esc(content).replace(/\n/g,'<br/>') + '</div>' + actions2 + '</div><div class="uav">✦</div>';
+    div.querySelectorAll('.act-btn').forEach(function(btn){ btn.dataset.text = content; });
   }
-  box.appendChild(div);scrollBot();return div;
+  box.appendChild(div);
+  scrollBot();
+  return div;
 }
 
-/* OFF-TOPIC TYPEWRITER ANIMATION */
-function showOffTopic(){
-  document.getElementById('welcome')?.remove();
-  const box=document.getElementById('msgs');
-  const div=document.createElement('div');
-  div.className='row ai';
-  div.innerHTML=`<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub" id="ot-bub" style="max-width:76%"></div>`;
-  box.appendChild(div);scrollBot();
+/* ── OFF-TOPIC TYPEWRITER ── */
+function showOffTopic() {
+  var welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+  var box = document.getElementById('msgs');
+  var div = document.createElement('div');
+  div.className = 'row ai';
+  div.innerHTML = '<div class="av"><div class="av-ring"></div><div class="av-face">🪐</div></div><div class="bub" id="ot-bub" style="max-width:76%"></div>';
+  box.appendChild(div);
+  scrollBot();
 
-  const bub=document.getElementById('ot-bub');
+  var bub = document.getElementById('ot-bub');
   bub.removeAttribute('id');
 
-  const lines=[
-    {html:'🚀 <strong>I'm designed to help with space and astronomy topics only.</strong>',delay:0},
-    {html:'That topic is outside my cosmic domain, but I'd love to help you explore the universe instead!',delay:320},
-    {html:'<span style="color:var(--dim);font-size:0.72rem">You can ask me about:</span>',delay:620},
-    {html:'<span style="color:var(--accent2)">• Black holes</span>',delay:900},
-    {html:'<span style="color:var(--accent2)">• Planets and galaxies</span>',delay:1080},
-    {html:'<span style="color:var(--accent2)">• Space missions</span>',delay:1260},
-    {html:'<span style="color:var(--accent2)">• Stars and cosmology</span>',delay:1440},
-    {html:'<strong style="color:var(--accent)">What would you like to explore? 🌌</strong>',delay:1700},
+  var lines = [
+    { html: '🚀 <strong>I\'m designed to help with space and astronomy topics only.</strong>', delay: 0 },
+    { html: 'That topic is outside my cosmic domain — but I\'d love to help you explore the universe instead!', delay: 350 },
+    { html: '<span style="color:var(--dim);font-size:0.72rem;letter-spacing:0.04em">You can ask me about:</span>', delay: 680 },
+    { html: '<span style="color:var(--accent2)">• Black holes</span>', delay: 950 },
+    { html: '<span style="color:var(--accent2)">• Planets and galaxies</span>', delay: 1120 },
+    { html: '<span style="color:var(--accent2)">• Space missions</span>', delay: 1290 },
+    { html: '<span style="color:var(--accent2)">• Stars and cosmology</span>', delay: 1460 },
+    { html: '<strong style="color:var(--accent)">What would you like to explore? 🌌</strong>', delay: 1700 }
   ];
 
-  lines.forEach(({html,delay})=>{
-    setTimeout(()=>{
-      const p=document.createElement('p');
-      p.innerHTML=html;
-      p.style.cssText='margin-bottom:5px;opacity:0;transform:translateY(7px);transition:opacity 0.28s ease,transform 0.28s ease;';
-      bub.appendChild(p);
-      requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        p.style.opacity='1';p.style.transform='translateY(0)';
-      }));
-      scrollBot();
-    },delay);
-  });
+  for (var i = 0; i < lines.length; i++) {
+    (function(line){
+      setTimeout(function(){
+        var p = document.createElement('p');
+        p.innerHTML = line.html;
+        p.style.marginBottom = '5px';
+        p.style.opacity = '0';
+        p.style.transform = 'translateY(8px)';
+        p.style.transition = 'opacity 0.26s ease, transform 0.26s ease';
+        bub.appendChild(p);
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            p.style.opacity = '1';
+            p.style.transform = 'translateY(0)';
+          });
+        });
+        scrollBot();
+      }, line.delay);
+    })(lines[i]);
+  }
 }
 
-function appendError(msg,retry=false){
-  const box=document.getElementById('msgs');
-  const div=document.createElement('div');div.className='err-row';
-  div.innerHTML=`<div class="err-bub">⚠&nbsp;<div>${esc(msg)}${retry?`<br/><button class="err-retry" onclick="retry()">↻ Try again</button>`:''}</div></div>`;
-  box.appendChild(div);scrollBot();
+/* ── ERROR ── */
+function appendError(msg, retry) {
+  var box = document.getElementById('msgs');
+  var div = document.createElement('div');
+  div.className = 'err-row';
+  var retryBtn = retry ? '<br/><button class="err-retry" onclick="retry()">↻ Try again</button>' : '';
+  div.innerHTML = '<div class="err-bub">⚠&nbsp;<div>' + esc(msg) + retryBtn + '</div></div>';
+  box.appendChild(div);
+  scrollBot();
 }
 
-/* SCROLL */
-function scrollBot(smooth=false){const el=document.getElementById('msgs');if(smooth)el.scrollTo({top:el.scrollHeight,behavior:'smooth'});else el.scrollTop=el.scrollHeight;}
-document.getElementById('msgs').addEventListener('scroll',function(){const near=this.scrollHeight-this.scrollTop-this.clientHeight<80;document.getElementById('scrollbtn').style.display=near?'none':'flex';},{passive:true});
+/* ── SCROLL ── */
+function scrollBot(smooth) {
+  var el = document.getElementById('msgs');
+  if (smooth) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  else el.scrollTop = el.scrollHeight;
+}
+document.getElementById('msgs').addEventListener('scroll', function(){
+  var near = this.scrollHeight - this.scrollTop - this.clientHeight < 80;
+  document.getElementById('scrollbtn').style.display = near ? 'none' : 'flex';
+}, { passive: true });
 
-/* INPUT */
-function onInput(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,140)+'px';const cc=document.getElementById('cc');const n=el.value.length;if(n>1800){cc.textContent=`${n}/2000`;cc.classList.add('show')}else cc.classList.remove('show');}
-function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}
-function usePill(el){const txt=el.textContent.trim().replace(/^[^\u0000-\u007F\s]+\s*/,'');const inp=document.getElementById('inp');inp.value=txt;onInput(inp);inp.focus();send();}
+/* ── INPUT ── */
+function onInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  var cc = document.getElementById('cc');
+  var n = el.value.length;
+  if (n > 1800) { cc.textContent = n + '/2000'; cc.classList.add('show'); }
+  else cc.classList.remove('show');
+}
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+}
+function usePill(el) {
+  var txt = el.textContent.trim().replace(/^[^\u0000-\u007F\s]+\s*/, '');
+  var inp = document.getElementById('inp');
+  inp.value = txt; onInput(inp); inp.focus(); send();
+}
 
-/* SEND */
-function setBusy(v){busy=v;const b=document.getElementById('snd');b.disabled=v;b.classList.toggle('busy',v);}
+/* ── SEND ── */
+function setBusy(v) {
+  busy = v;
+  var b = document.getElementById('snd');
+  b.disabled = v;
+  if (v) b.classList.add('busy'); else b.classList.remove('busy');
+}
 
-async function send(){
-  if(busy)return;
-  const inp=document.getElementById('inp');const txt=inp.value.trim();if(!txt)return;
-  lastMsg=txt;inp.value='';inp.style.height='auto';document.getElementById('cc').classList.remove('show');
+async function send() {
+  if (busy) return;
+  var inp = document.getElementById('inp');
+  var txt = inp.value.trim();
+  if (!txt) return;
+  lastMsg = txt;
+  inp.value = '';
+  inp.style.height = 'auto';
+  document.getElementById('cc').classList.remove('show');
   setBusy(true);
-  appendRow('user',txt);
+  appendRow('user', txt);
 
-  // CLIENT-SIDE off-topic check — no API call wasted
-  if(isOffTopic(txt)){
+  /* Client-side off-topic check — instant, no API call */
+  if (isOffTopic(txt)) {
     setBusy(false);
     showOffTopic();
     inp.focus();
     return;
   }
 
-  const tEl=appendRow('ai','',true);
-  try{
-    const reply=await askGroq(txt);
+  var tEl = appendRow('ai', '', true);
+  try {
+    var reply = await askGroq(txt);
     tEl.remove();
-    if(reply&&reply.offTopic){
+    if (reply && reply.offTopic) {
       showOffTopic();
     } else {
-      appendRow('ai',reply);
+      appendRow('ai', reply);
     }
-  }catch(err){
-    tEl.remove();let m=err.message||'Something went wrong.';
-    if(/401|invalid_api_key/i.test(m))m='Invalid API key. Check Vercel environment variables.';
-    else if(/429|rate.limit/i.test(m))m='Rate limit reached. Wait a moment and try again.';
-    else if(/Failed to fetch|NetworkError|404/i.test(m))m='Cannot reach the server. Make sure Vercel deployed correctly.';
-    appendError(m,true);
-  }finally{setBusy(false);inp.focus();}
+  } catch(err) {
+    tEl.remove();
+    var m = err.message || 'Something went wrong.';
+    if (/401|invalid_api_key/i.test(m)) m = 'Invalid API key. Check Vercel environment variables.';
+    else if (/429|rate.limit/i.test(m)) m = 'Rate limit reached. Wait a moment and try again.';
+    else if (/Failed to fetch|NetworkError|404/i.test(m)) m = 'Cannot reach the server. Make sure Vercel deployed correctly.';
+    appendError(m, true);
+  } finally {
+    setBusy(false);
+    inp.focus();
+  }
 }
 
-async function retry(){
-  if(!lastMsg||busy)return;
-  document.querySelectorAll('.err-row').forEach(e=>e.remove());
-  const inp=document.getElementById('inp');inp.value=lastMsg;onInput(inp);send();
+async function retry() {
+  if (!lastMsg || busy) return;
+  document.querySelectorAll('.err-row').forEach(function(e){ e.remove(); });
+  var inp = document.getElementById('inp');
+  inp.value = lastMsg; onInput(inp); send();
 }
 
-function clearChat(){
-  if(busy)return;saveSession();hist=[];lastMsg='';currentSessionId=null;
-  document.getElementById('msgs').innerHTML=`<div id="welcome"><div class="hero-orb"><div class="hero-ring"></div><div class="hero-core"><div class="hero-planet">🌌</div></div></div><div class="wt">Explore the Cosmos</div><p class="ws">Your AI guide to the universe. Ask anything about black holes, exoplanets, missions, or the mysteries of space.</p><div class="pills"><span class="pill" onclick="usePill(this)">🕳️ How do black holes form?</span><span class="pill" onclick="usePill(this)">🔭 James Webb discoveries</span><span class="pill" onclick="usePill(this)">🚀 Could humans live on Mars?</span><span class="pill" onclick="usePill(this)">✨ What is dark matter?</span><span class="pill" onclick="usePill(this)">🌍 How did Earth form?</span><span class="pill" onclick="usePill(this)">💥 The Big Bang explained</span></div></div>`;
-  document.getElementById('scrollbtn').style.display='none';
+function clearChat() {
+  if (busy) return;
+  saveSession();
+  hist = []; lastMsg = ''; currentSessionId = null;
+  document.getElementById('msgs').innerHTML = '<div id="welcome"><div class="hero-orb"><div class="hero-ring"></div><div class="hero-core"><div class="hero-planet">🌌</div></div></div><div class="wt">Explore the Cosmos</div><p class="ws">Your AI guide to the universe. Ask anything about black holes, exoplanets, missions, or the mysteries of space.</p><div class="pills"><span class="pill" onclick="usePill(this)">🕳️ How do black holes form?</span><span class="pill" onclick="usePill(this)">🔭 James Webb discoveries</span><span class="pill" onclick="usePill(this)">🚀 Could humans live on Mars?</span><span class="pill" onclick="usePill(this)">✨ What is dark matter?</span><span class="pill" onclick="usePill(this)">🌍 How did Earth form?</span><span class="pill" onclick="usePill(this)">💥 The Big Bang explained</span></div></div>';
+  document.getElementById('scrollbtn').style.display = 'none';
 }
-function newChat(){saveSession();clearChat();closeAll();}
+
+function newChat() { saveSession(); clearChat(); closeAll(); }
+
 renderHistory();
 </script>
+
 </body>
 </html>
